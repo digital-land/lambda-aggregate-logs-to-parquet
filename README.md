@@ -14,4 +14,4 @@ source venv/bin/activate
 ```
 Where start and end are the upper and lower bounds of the dates for the logs to be aggregated
 
-# Test push to main 2
+# Test push to main
