@@ -13,5 +13,3 @@ source venv/bin/activate
     make run_aggregate_logs start="DD/MM/YYYY" end="DD/MM/YYYY"
 ```
 Where start and end are the upper and lower bounds of the dates for the logs to be aggregated
-
-# Test push to main
