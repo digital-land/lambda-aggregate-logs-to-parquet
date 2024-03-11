@@ -1,0 +1,136 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: environment
+        description: The environment to deploy to.
+
+jobs:
+  detect-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.environments.outputs.result }}
+    steps:
+      - uses: actions/github-script@v6
+        id: environments
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: json
+          script: |
+            if (context.payload?.inputs?.environment) return [context.payload?.inputs?.environment];
+            const {data: {environments}} = 
+              await github.request(`GET /repos/${process.env.GITHUB_REPOSITORY}/environments`);
+            return environments.map(e => e.name)
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [detect-environments]
+    strategy:
+      matrix:
+        environment: ${{ fromJSON(needs.detect-environments.outputs.environments) }}
+    environment: ${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aws cli
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
+      - name: Build Notification functions
+        run: |
+          rm -rf node_modules/
+          docker build -t ${{ matrix.environment }}-notification-builder ./notification-code
+          docker run -i -v ${GITHUB_WORKSPACE}/notification-code:/var/task ${{ matrix.environment }}-notification-builder
+
+      - name: Build Aggregate logs to parquet functions
+        run: |
+          docker build -t ${{ matrix.environment }}-aggregate-logs-to-parquet ./aggregate-logs-to-parquet
+          # docker run -i -v ${GITHUB_WORKSPACE}/aggregate-logs-to-parquet:/var/task ${{ matrix.environment }}-aggregate-logs-to-parquet
+
+      - name: Set File Permissions
+        run: |
+          chmod 0666 ./notification-code
+          chmod 0666 ./process-log
+          chmod 0666 ./cloudwatch-alarms-to-slack
+          chmod 0666 ./aggregate-logs-to-parquet
+
+      - name: Create Notification Archive
+        run: |
+          sudo -s sh -c 'cd notification-code && zip -r ../notification-code.zip ./*'
+          sudo -s sh -c  'pwd'
+  
+      - name: Upload Notification artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: notification-code
+          path: notification-code.zip
+
+      - name: Create Process log Archive
+        run: |
+          sudo -s sh -c 'cd process-log && zip -r ../process-log.zip ./index.js'
+          sudo -s sh -c  'pwd'
+  
+      - name: Upload Process log artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: process-log
+          path: process-log.zip
+
+      - name: Create Cloudwatch alarms Archive
+        run: |
+          sudo -s sh -c 'cd cloudwatch-alarms-to-slack && zip -r ../cloudwatch-alarms-to-slack ./function.py'
+          sudo -s sh -c  'pwd'
+  
+      - name: Upload Cloudwatch alarms artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: cloudwatch-alarms-to-slack
+          path: cloudwatch-alarms-to-slack.zip
+
+      - name: Create Aggregate logs to Parquet Archive
+        run: |
+          sudo -s sh -c 'cd aggregate-logs-to-parquet && zip -r ../aggregate-logs-to-parquet ./*'
+          sudo -s sh -c  'pwd'
+  
+      - name: Upload Aggregate logs to Parquet artifact for deployment job
+        uses: actions/upload-artifact@v3
+        with:
+          name: aggregate-logs-to-parquet
+          path: aggregate-logs-to-parquet.zip
+
+      - name: Set up AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.DEPLOY_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DEPLOY_AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+      
+      - name: Deploy aws Lambda functions
+        run: |
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-main-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-status-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-datasette-tiles-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-datasette-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-data-val-fe-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-data-val-be-slack-notifier --zip-file fileb://./notification-code.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-send-alarms-to-slack --zip-file fileb://./cloudwatch-alarms-to-slack.zip
+
+      - name: Deploy aws Process log Lambda functions
+        run: |
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-datasette-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-datasette-tiles-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-main-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-status-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-data-val-fe-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-data-val-be-cdn-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-root-to-www-logs-process --zip-file fileb://./process-log.zip
+          aws lambda update-function-code --function-name ${{ matrix.environment }}-collection-data-logs-process --zip-file fileb://./process-log.zip
+          # aws lambda update-function-code --function-name ${{ matrix.environment }}-aggregate-logs-parquet --zip-file fileb://./aggregate-logs-to-parquet.zip

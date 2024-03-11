@@ -1,0 +1,45 @@
+name: Deploy To Development
+on: [workflow_dispatch]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: development
+    env:
+      DOCKER_REPO: ${{ secrets.DEPLOY_DOCKER_REPOSITORY }}
+    defaults:
+      run:
+        working-directory: ./aggregate-logs-to-parquet
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+          sudo apt-get update
+          sudo apt-get install -y rsync
+
+      - uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          aws-access-key-id: ${{ secrets.DEPLOY_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DEPLOY_AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - uses: aws-actions/amazon-ecr-login@v1
+
+      - run: docker pull $DOCKER_REPO:latest || echo "no current latest image"
+      
+      - run: docker build --build-arg DEPLOY_TIME="$(date +%Y-%m-%dT%H:%M:%S)" -t $DOCKER_REPO:${{ steps.vars.outputs.sha_short }} .
+
+      - run: docker tag $DOCKER_REPO:${{ steps.vars.outputs.sha_short }} $DOCKER_REPO:latest
+
+      - run: docker push $DOCKER_REPO:${{ steps.vars.outputs.sha_short }}
+
+      - run: docker push $DOCKER_REPO:latest
+
+      - name: Deploy aws log parquet Lambda functions
+        run: |
+          aws lambda update-function-code --function-name development-aggregate-logs-parquet --image-uri 955696714113.dkr.ecr.eu-west-2.amazonaws.com/development-aggregate-logs-lambda:latest
