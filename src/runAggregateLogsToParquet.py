@@ -1,15 +1,11 @@
 import argparse
-import datetime
 import aggregateLogsToParquet
 from log_schemas.pageView import pageViewSchema
 
 log_groups = {
-    '/application/development-data-val-fe': {
-        'schemas': {
-            'PageView': pageViewSchema
-        }
-    }
+    "/application/development-data-val-fe": {"schemas": {"PageView": pageViewSchema}}
 }
+
 
 def main():
     """
@@ -26,13 +22,16 @@ def main():
     along with the log group name and schemas, for each log group.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start', required=True)
-    parser.add_argument('--end', required=True)
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--end", required=True)
     args = parser.parse_args()
 
     for name, log_group in log_groups.items():
-        print(f'Running custom log aggregation for log group {name}')
-        aggregateLogsToParquet.run_custom(name, args.start, args.end, log_group['schemas'])
-        
-if __name__ == '__main__':
+        print(f"Running custom log aggregation for log group {name}")
+        aggregateLogsToParquet.run_custom(
+            name, args.start, args.end, log_group["schemas"]
+        )
+
+
+if __name__ == "__main__":
     main()

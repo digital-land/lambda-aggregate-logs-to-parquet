@@ -19,15 +19,14 @@ run_aggregate_logs:
 # =============================
 
 lint:
-	make black ./application
-	python3 -m flake8 ./application
-	make jslint
-
-black-check:
-	black --check .
+	make black
+	make flake8
 
 black:
 	python3 -m black .
+
+flake8:
+	python3 -m flake8 .
 
 jslint::
 	npx eslint --ext .html,.js ./

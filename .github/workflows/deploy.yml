@@ -22,7 +22,7 @@ jobs:
           result-encoding: json
           script: |
             if (context.payload?.inputs?.environment) return [context.payload?.inputs?.environment];
-            const {data: {environments}} = 
+            const {data: {environments}} =
               await github.request(`GET /repos/${process.env.GITHUB_REPOSITORY}/environments`);
             return environments.map(e => e.name)
 
@@ -66,7 +66,7 @@ jobs:
         run: |
           sudo -s sh -c 'cd notification-code && zip -r ../notification-code.zip ./*'
           sudo -s sh -c  'pwd'
-  
+
       - name: Upload Notification artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
@@ -77,7 +77,7 @@ jobs:
         run: |
           sudo -s sh -c 'cd process-log && zip -r ../process-log.zip ./index.js'
           sudo -s sh -c  'pwd'
-  
+
       - name: Upload Process log artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
@@ -88,7 +88,7 @@ jobs:
         run: |
           sudo -s sh -c 'cd cloudwatch-alarms-to-slack && zip -r ../cloudwatch-alarms-to-slack ./function.py'
           sudo -s sh -c  'pwd'
-  
+
       - name: Upload Cloudwatch alarms artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
@@ -99,7 +99,7 @@ jobs:
         run: |
           sudo -s sh -c 'cd aggregate-logs-to-parquet && zip -r ../aggregate-logs-to-parquet ./*'
           sudo -s sh -c  'pwd'
-  
+
       - name: Upload Aggregate logs to Parquet artifact for deployment job
         uses: actions/upload-artifact@v3
         with:
@@ -112,7 +112,7 @@ jobs:
           aws-access-key-id: ${{ secrets.DEPLOY_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.DEPLOY_AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
-      
+
       - name: Deploy aws Lambda functions
         run: |
           aws lambda update-function-code --function-name ${{ matrix.environment }}-main-slack-notifier --zip-file fileb://./notification-code.zip

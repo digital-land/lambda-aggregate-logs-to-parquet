@@ -1,17 +1,12 @@
 import datetime
-import time
 from src.LogCombiner import LogCombiner
 from log_schemas.pageView import pageViewSchema
 
-reportBucket = 'development-reporting'
+reportBucket = "development-reporting"
 parquet_file_path = f"s3://{reportBucket}"
 
 log_groups = {
-    '/application/development-data-val-fe': {
-        'schemas': {
-            'PageView': pageViewSchema
-        }
-    }
+    "/application/development-data-val-fe": {"schemas": {"PageView": pageViewSchema}}
 }
 
 
@@ -30,6 +25,7 @@ def lambda_handler(event, context):
     """
     run()
 
+
 def run():
     """
     This function runs the log aggregation process.
@@ -43,12 +39,15 @@ def run():
     The function calculates the start and end times for the logs to be combined, which are one day before the current time.
     Then, for each log group, it creates a LogCombiner object and runs the log combining process.
     """
-    last_midnight = datetime.datetime.combine(datetime.datetime.today(), datetime.time.min)
+    last_midnight = datetime.datetime.combine(
+        datetime.datetime.today(), datetime.time.min
+    )
     one_day = datetime.timedelta(days=1)
-    hours = datetime.timedelta(hours=1)
 
     for log_group_name, log_group in log_groups:
-        logCombiner = LogCombiner(log_group_name, log_group.schemas, last_midnight - one_day, last_midnight)
+        logCombiner = LogCombiner(
+            log_group_name, log_group.schemas, last_midnight - one_day, last_midnight
+        )
         logCombiner.combineLogs(parquet_file_path)
 
 
@@ -65,12 +64,12 @@ def run_custom(log_group_name, start, end, schemas):
     Returns:
     bool: True if the process completes successfully, False otherwise.
 
-    The function first converts the start and end dates from strings to datetime objects. 
+    The function first converts the start and end dates from strings to datetime objects.
     If the dates are not in the correct format, it prints an error message and returns False.
     Then, it creates a LogCombiner object and runs the log combining process.
     If the process completes successfully, it returns True.
     """
-    formats = ['%d-%m-%Y', '%d/%m/%Y']
+    formats = ["%d-%m-%Y", "%d/%m/%Y"]
 
     for fmt in formats:
         try:
@@ -79,7 +78,9 @@ def run_custom(log_group_name, start, end, schemas):
         except ValueError:
             pass
     else:
-        print(f"Error: The start date is not in the correct format. Please use 'DD-MM-YYYY' or 'DD/MM/YYYY'. provided: {start}")
+        print(
+            f"Error: The start date is not in the correct format. Please use 'DD-MM-YYYY' or 'DD/MM/YYYY'. provided: {start}"
+        )
         return False
 
     for fmt in formats:
@@ -89,7 +90,9 @@ def run_custom(log_group_name, start, end, schemas):
         except ValueError:
             pass
     else:
-        print(f"Error: The end date is not in the correct format. Please use 'DD-MM-YYYY' or 'DD/MM/YYYY'. provided: {end}")
+        print(
+            f"Error: The end date is not in the correct format. Please use 'DD-MM-YYYY' or 'DD/MM/YYYY'. provided: {end}"
+        )
         return False
 
     start = datetime.datetime.combine(start, datetime.time.min)
@@ -99,4 +102,3 @@ def run_custom(log_group_name, start, end, schemas):
     logCombiner.combineLogs(parquet_file_path)
 
     return True
-    

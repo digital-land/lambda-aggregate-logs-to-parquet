@@ -3,5 +3,5 @@
 pageViewSchema = [
     {"name": "timestamp", "type": "TIMESTAMP"},
     {"name": "sessionId", "type": "VARCHAR"},
-    {"name": "pageRoute", "type": "VARCHAR"}
+    {"name": "pageRoute", "type": "VARCHAR"},
 ]

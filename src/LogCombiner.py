@@ -1,9 +1,9 @@
 import json
-import os
 import duckdb
 import boto3
 import time
 from src.helpers import isJson
+
 
 class LogCombiner:
     """
@@ -19,7 +19,7 @@ class LogCombiner:
     created_tables (dict): A dictionary to keep track of the created tables.
     duckdb_connection (Connection): The DuckDB connection object.
     """
-        
+
     def __init__(self, log_group_name, log_schemas, start_time, end_time):
         """
         The constructor for the LogCombiner class.
@@ -34,19 +34,18 @@ class LogCombiner:
         self.start_time = start_time
         self.end_time = end_time
         self.schemas = log_schemas
-        self.session = boto3.Session(region_name='eu-west-2')
-        self.client = self.session.client('logs')
+        self.session = boto3.Session(region_name="eu-west-2")
+        self.client = self.session.client("logs")
         self.created_tables = {}
 
         self.duckdb_connection = duckdb.connect()
         self.duckdb_connection.execute("SET home_directory='/tmp'")
-        self.duckdb_connection.install_extension('https')
-        self.duckdb_connection.load_extension('https')
-        self.duckdb_connection.install_extension('aws')
-        self.duckdb_connection.load_extension('aws')
+        self.duckdb_connection.install_extension("https")
+        self.duckdb_connection.load_extension("https")
+        self.duckdb_connection.install_extension("aws")
+        self.duckdb_connection.load_extension("aws")
         self.duckdb_connection.execute("SET s3_region='eu-west-2';")
         self.duckdb_connection.execute("CALL load_aws_credentials();")
-
 
     def combineLogs(self, save_file_path):
         """
@@ -65,11 +64,15 @@ class LogCombiner:
 
         self._add_logs_to_tables(logs)
         add_logs_to_tables_time = time.time()
-        print(f"Time taken to add logs to tables: {add_logs_to_tables_time - fetch_logs_time} seconds")
+        print(
+            f"Time taken to add logs to tables: {add_logs_to_tables_time - fetch_logs_time} seconds"
+        )
 
         self._save_tables_to_parquet(save_file_path)
         save_tables_to_parquet_time = time.time()
-        print(f"Time taken to save tables to parquet: {save_tables_to_parquet_time - add_logs_to_tables_time} seconds")
+        print(
+            f"Time taken to save tables to parquet: {save_tables_to_parquet_time - add_logs_to_tables_time} seconds"
+        )
 
     def _fetch_logs(self):
         """
@@ -81,21 +84,23 @@ class LogCombiner:
         Returns:
         list: A list of the fetched logs.
         """
-        print('getting logs for: ' + self.log_group_name + ' from: ' + str(self.start_time) + ' to: ' + str(self.end_time))
+        print(
+            f"getting logs for: {self.log_group_name} from: {str(self.start_time)} to: {str(self.end_time)}"
+        )
 
         # get the logs from cloudfront
-        paginator = self.client.get_paginator('filter_log_events')
+        paginator = self.client.get_paginator("filter_log_events")
         response_iterator = paginator.paginate(
             logGroupName=self.log_group_name,
             startTime=int(self.start_time.timestamp() * 1000),
-            endTime=int(self.end_time.timestamp() * 1000)
+            endTime=int(self.end_time.timestamp() * 1000),
         )
 
         events = []
         for response in response_iterator:
-            events.extend(response['events'])
+            events.extend(response["events"])
 
-        print('got ' + str(len(events)) + ' logs')
+        print("got " + str(len(events)) + " logs")
 
         return events
 
@@ -113,19 +118,19 @@ class LogCombiner:
         batch_data = {}
 
         for event in logs:
-            if not isJson(event['message']):
+            if not isJson(event["message"]):
                 continue
 
-            message_json = json.loads(event['message'])
+            message_json = json.loads(event["message"])
 
-            if 'type' not in message_json:
+            if "type" not in message_json:
                 print(f"Message type not found in message: {message_json}")
                 continue
 
-            message_type = message_json['type']
+            message_type = message_json["type"]
 
             if message_type not in self.schemas:
-                unrecognised_message_types.add(message_json['type'])
+                unrecognised_message_types.add(message_json["type"])
                 continue
 
             schema = self.schemas[message_type]
@@ -133,12 +138,14 @@ class LogCombiner:
             # create the table if doesn't exist
             if message_type not in self.created_tables:
                 self.created_tables[message_type] = True
-                fields = ', '.join(['{} {}'.format(field["name"], field["type"]) for field in schema])
+                fields = ", ".join(
+                    ["{} {}".format(field["name"], field["type"]) for field in schema]
+                )
                 query = "CREATE TABLE {} ({});".format(message_type, fields)
                 self.duckdb_connection.execute(query)
 
             # get field names
-            field_names = [field['name'] for field in schema]
+            field_names = [field["name"] for field in schema]
 
             # get field values
             field_values = [message_json[field] for field in field_names]
@@ -150,8 +157,10 @@ class LogCombiner:
 
         # insert the batch data into the tables
         for message_type, data in batch_data.items():
-            placeholders = ', '.join(['?' for _ in data[0]])
-            self.duckdb_connection.executemany(f"INSERT INTO {message_type} VALUES ({placeholders});", data)
+            placeholders = ", ".join(["?" for _ in data[0]])
+            self.duckdb_connection.executemany(
+                f"INSERT INTO {message_type} VALUES ({placeholders});", data
+            )
             print(f"Inserted {len(data)} records into {message_type} table")
 
         if len(unrecognised_message_types) > 0:
@@ -172,12 +181,14 @@ class LogCombiner:
             # Define the directory path
             dir_path = f"{save_file_path}{self.log_group_name}/{table}"
 
-            s3 = boto3.client('s3')
-            bucket_name = 'development-reporting'
-            folder_name = f'{self.log_group_name}/{table}'
+            s3 = boto3.client("s3")
+            bucket_name = "development-reporting"
+            folder_name = f"{self.log_group_name}/{table}"
 
             s3.put_object(Bucket=bucket_name, Key=(folder_name))
 
-            self.duckdb_connection.execute(f"COPY {table} TO '{dir_path}/{self.start_time.strftime('%Y-%m-%d')}.parquet' (format 'parquet');")
+            self.duckdb_connection.execute(
+                f"COPY {table} TO '{dir_path}/{self.start_time.strftime('%Y-%m-%d')}.parquet' (format 'parquet');"
+            )
             self.duckdb_connection.execute(f"DROP TABLE {table};")
             print(f"Saved {table}/{self.start_time.strftime('%Y-%m-%d')} to parquet")
