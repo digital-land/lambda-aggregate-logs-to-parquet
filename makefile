@@ -1,9 +1,36 @@
 init::
 	python -m pip install pip-tools
+	make piptool-compile
 	make dependencies
+	python -m pre_commit install
+
+piptool-compile::
+	python -m piptools compile --output-file=requirements/requirements.txt requirements/requirements.in
+	python -m piptools compile requirements/dev-requirements.in
 
 dependencies::
-	pip-sync requirements/requirements.txt
+	pip-sync requirements/requirements.txt requirements/dev-requirements.txt
 
 run_aggregate_logs:
 	python3 runAggregateLogsToParquet.py --start $(start) --end $(end)
+
+# =============================
+# Linting
+# =============================
+
+lint:
+	make black ./application
+	python3 -m flake8 ./application
+	make jslint
+
+black-check:
+	black --check .
+
+black:
+	python3 -m black .
+
+jslint::
+	npx eslint --ext .html,.js ./
+
+jslint-fix::
+	npx eslint --ext .html,.js ./ --fix
