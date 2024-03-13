@@ -1,6 +1,6 @@
 import argparse
-import aggregateLogsToParquet
-from log_schemas.pageView import pageViewSchema
+import src.aggregateLogsToParquet as aggregateLogsToParquet
+from src.log_schemas.pageView import pageViewSchema
 
 log_groups = {
     "/application/development-data-val-fe": {"schemas": {"PageView": pageViewSchema}}

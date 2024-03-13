@@ -2,7 +2,7 @@ import json
 import duckdb
 import boto3
 import time
-from src.helpers import isJson
+from .helpers import isJson
 
 
 class LogCombiner:
@@ -20,7 +20,9 @@ class LogCombiner:
     duckdb_connection (Connection): The DuckDB connection object.
     """
 
-    def __init__(self, log_group_name, log_schemas, start_time, end_time):
+    def __init__(
+        self, log_group_name, log_schemas, start_time, end_time, boto3_session
+    ):
         """
         The constructor for the LogCombiner class.
 
@@ -34,7 +36,7 @@ class LogCombiner:
         self.start_time = start_time
         self.end_time = end_time
         self.schemas = log_schemas
-        self.session = boto3.Session(region_name="eu-west-2")
+        self.session = boto3_session
         self.client = self.session.client("logs")
         self.created_tables = {}
 
@@ -45,7 +47,8 @@ class LogCombiner:
         self.duckdb_connection.install_extension("aws")
         self.duckdb_connection.load_extension("aws")
         self.duckdb_connection.execute("SET s3_region='eu-west-2';")
-        self.duckdb_connection.execute("CALL load_aws_credentials();")
+        result = self.duckdb_connection.sql("CALL load_aws_credentials('default');")
+        print(result)
 
     def combineLogs(self, save_file_path):
         """
@@ -87,6 +90,13 @@ class LogCombiner:
         print(
             f"getting logs for: {self.log_group_name} from: {str(self.start_time)} to: {str(self.end_time)}"
         )
+
+        # Get the list of log groups
+        response = self.client.describe_log_groups()
+
+        # Print the log groups
+        for log_group in response["logGroups"]:
+            print(log_group["logGroupName"])
 
         # get the logs from cloudfront
         paginator = self.client.get_paginator("filter_log_events")

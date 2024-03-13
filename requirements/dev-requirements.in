@@ -1,3 +1,5 @@
 black>=22.3.0
 flake8
 pre_commit
+pytest
+moto

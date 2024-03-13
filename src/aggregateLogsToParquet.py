@@ -1,9 +1,7 @@
 import datetime
 from src.LogCombiner import LogCombiner
-from log_schemas.pageView import pageViewSchema
-
-reportBucket = "development-reporting"
-parquet_file_path = f"s3://{reportBucket}"
+from src.log_schemas.pageView import pageViewSchema
+import boto3
 
 log_groups = {
     "/application/development-data-val-fe": {"schemas": {"PageView": pageViewSchema}}
@@ -44,6 +42,9 @@ def run():
     )
     one_day = datetime.timedelta(days=1)
 
+    reportBucket = "development-reporting"
+    parquet_file_path = f"s3://{reportBucket}"
+
     for log_group_name, log_group in log_groups:
         logCombiner = LogCombiner(
             log_group_name, log_group.schemas, last_midnight - one_day, last_midnight
@@ -51,7 +52,14 @@ def run():
         logCombiner.combineLogs(parquet_file_path)
 
 
-def run_custom(log_group_name, start, end, schemas):
+def run_custom(
+    log_group_name,
+    start,
+    end,
+    schemas,
+    boto3_session=boto3.Session(region_name="eu-west-2"),
+    reportBucket="development-reporting",
+):
     """
     This function runs the custom log aggregation process.
 
@@ -98,7 +106,9 @@ def run_custom(log_group_name, start, end, schemas):
     start = datetime.datetime.combine(start, datetime.time.min)
     end = datetime.datetime.combine(end, datetime.time.min)
 
-    logCombiner = LogCombiner(log_group_name, schemas, start, end)
+    parquet_file_path = f"s3://{reportBucket}"
+
+    logCombiner = LogCombiner(log_group_name, schemas, start, end, boto3_session)
     logCombiner.combineLogs(parquet_file_path)
 
     return True

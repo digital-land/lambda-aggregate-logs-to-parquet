@@ -1,3 +1,7 @@
+# =============================
+# Setup
+# =============================
+
 init::
 	python -m pip install pip-tools
 	make piptool-compile
@@ -11,8 +15,16 @@ piptool-compile::
 dependencies::
 	pip-sync requirements/requirements.txt requirements/dev-requirements.txt
 
+
+
+# =============================
+# Execution
+# =============================
+
 run_aggregate_logs:
 	python3 runAggregateLogsToParquet.py --start $(start) --end $(end)
+
+
 
 # =============================
 # Linting
@@ -33,3 +45,17 @@ jslint::
 
 jslint-fix::
 	npx eslint --ext .html,.js ./ --fix
+
+
+
+# =============================
+# Testing
+# =============================
+
+test:: test-integration test-acceptance
+
+test-integration::
+	python -m pytest tests/integration
+
+test-acceptance::
+	python -m pytest -s tests/acceptance
